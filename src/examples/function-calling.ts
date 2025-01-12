@@ -1,100 +1,110 @@
-import { BaseFunctionProvider } from '../core/BaseFunctionProvider';
-import { FunctionDefinition, FunctionParameter } from '../core/interfaces';
+import { Agent, AnthropicProvider } from '../';
+import { Message } from '../core/types';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+// Example functions that can be called by the agent
+const functions = {
+    getWeather: async (location: string): Promise<string> => {
+        // Simulate weather API call
+        return `The weather in ${location} is sunny and 22°C`;
+    },
+    
+    setReminder: async (time: string, message: string): Promise<string> => {
+        // Simulate setting a reminder
+        return `Reminder set for ${time}: ${message}`;
+    },
+    
+    searchDatabase: async (query: string): Promise<string[]> => {
+        // Simulate database search
+        return [`Result 1 for "${query}"`, `Result 2 for "${query}"`];
+    }
+};
 
 async function main() {
-    // Create a function provider
-    const functionProvider = new BaseFunctionProvider();
-    await functionProvider.initialize();
-
-    // Define a weather function
-    const weatherFunction: FunctionDefinition = {
-        name: 'get_weather',
-        description: 'Get the weather for a specific location',
-        parameters: {
-            location: {
-                type: 'string',
-                description: 'City name or coordinates',
-                required: true
-            },
-            unit: {
-                type: 'string',
-                description: 'Temperature unit (celsius or fahrenheit)',
-                required: false
-            }
-        },
-        returnType: 'object'
-    };
-
-    // Register the function with its handler
-    functionProvider.registerFunction(weatherFunction, async (args) => {
-        // This would typically call a weather API
-        return {
-            temperature: 22,
-            unit: args.unit || 'celsius',
-            condition: 'sunny',
-            location: args.location
-        };
+    // Initialize the agent
+    const agent = new Agent({
+        domain: 'function-calling',
+        userId: 'function-agent',
+        platform: 'cli',
+        capabilities: ['text-generation', 'function-calling'],
+        permissions: ['read', 'write', 'execute-functions']
     });
 
-    // Define a reminder function
-    const reminderFunction: FunctionDefinition = {
-        name: 'set_reminder',
-        description: 'Set a reminder for a specific time',
-        parameters: {
-            message: {
-                type: 'string',
-                description: 'Reminder message',
-                required: true
-            },
-            time: {
-                type: 'string',
-                description: 'Time for the reminder (ISO string)',
-                required: true
-            },
-            priority: {
-                type: 'string',
-                description: 'Reminder priority (low, medium, high)',
-                required: false
-            }
-        },
-        returnType: 'object'
-    };
-
-    // Register the reminder function
-    functionProvider.registerFunction(reminderFunction, async (args) => {
-        return {
-            id: `reminder-${Date.now()}`,
-            message: args.message,
-            time: args.time,
-            priority: args.priority || 'medium',
-            created: new Date().toISOString()
-        };
+    // Set up AI provider with function definitions
+    const aiProvider = new AnthropicProvider({
+        apiKey: process.env.ANTHROPIC_API_KEY!,
+        model: 'claude-3-opus-20240229'
     });
 
-    // Example usage
-    try {
-        // List available functions
-        console.log('Available functions:', functionProvider.listFunctions());
+    await agent.setAIProvider(aiProvider);
+    await agent.initialize();
 
-        // Call the weather function
-        const weatherResult = await functionProvider.executeFunction('get_weather', {
-            location: 'San Francisco',
-            unit: 'celsius'
-        });
-        console.log('Weather result:', weatherResult);
+    // Example messages that require function calling
+    const messages: Message[] = [
+        {
+            role: 'user',
+            content: 'What\'s the weather like in London?',
+            metadata: {
+                timestamp: new Date().toISOString(),
+                platform: 'cli'
+            }
+        },
+        {
+            role: 'user',
+            content: 'Set a reminder for tomorrow at 9 AM to check emails',
+            metadata: {
+                timestamp: new Date().toISOString(),
+                platform: 'cli'
+            }
+        },
+        {
+            role: 'user',
+            content: 'Search the database for recent transactions',
+            metadata: {
+                timestamp: new Date().toISOString(),
+                platform: 'cli'
+            }
+        }
+    ];
 
-        // Call the reminder function
-        const reminderResult = await functionProvider.executeFunction('set_reminder', {
-            message: 'Team meeting',
-            time: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
-            priority: 'high'
-        });
-        console.log('Reminder result:', reminderResult);
-    } catch (error) {
-        console.error('Error:', error);
-    } finally {
-        await functionProvider.shutdown();
+    // Process messages and handle function calls
+    for (const message of messages) {
+        console.log('\nUser:', message.content);
+
+        const response = await agent.processMessage(message);
+        console.log('Assistant:', response.content);
+
+        // Handle function calls if present in response
+        if (response.metadata?.functionCall) {
+            const { name, arguments: args } = response.metadata.functionCall;
+            if (name in functions) {
+                try {
+                    // @ts-ignore - Dynamic function call
+                    const result = await functions[name](...Object.values(args));
+                    console.log('Function Result:', result);
+
+                    // Let the agent process the function result
+                    const functionResponse = await agent.processMessage({
+                        role: 'system',
+                        content: `Function ${name} returned: ${JSON.stringify(result)}`,
+                        metadata: {
+                            timestamp: new Date().toISOString(),
+                            platform: 'cli',
+                            functionResult: true
+                        }
+                    });
+                    console.log('Assistant:', functionResponse.content);
+                } catch (error) {
+                    console.error(`Error executing function ${name}:`, error);
+                }
+            }
+        }
     }
+
+    // Cleanup
+    await agent.shutdown();
 }
 
 main().catch(console.error); 

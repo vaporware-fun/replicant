@@ -1,111 +1,106 @@
+import { Agent, AnthropicProvider } from '../';
 import { InMemoryStateProvider } from '../core/InMemoryStateProvider';
 import { ConversationStateData } from '../core/interfaces';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 async function main() {
+    // Initialize the agent
+    const agent = new Agent({
+        domain: 'stateful-chat',
+        userId: 'stateful-agent',
+        platform: 'cli',
+        capabilities: ['text-generation'],
+        permissions: ['read', 'write']
+    });
+
+    // Set up providers
+    const aiProvider = new AnthropicProvider({
+        apiKey: process.env.ANTHROPIC_API_KEY!,
+        model: 'claude-3-opus-20240229'
+    });
+
     const stateProvider = new InMemoryStateProvider();
-    await stateProvider.initialize();
 
-    const conversationId = 'test-conversation';
-    const userId = 'test-user';
+    await agent.setAIProvider(aiProvider);
+    await agent.setStateProvider(stateProvider);
 
-    // Initial state
-    const initialState: ConversationStateData = {
-        id: conversationId,
+    // Initialize the agent
+    await agent.initialize();
+
+    // Example conversation with state tracking
+    const conversation: ConversationStateData = {
+        id: 'demo-conversation',
         turnCount: 0,
         lastInteraction: new Date(),
-        variables: {},
+        variables: {
+            topic: 'state management',
+            userPreference: 'technical'
+        },
         userProfile: {
-            id: userId,
-            preferences: {},
+            id: 'demo-user',
+            preferences: {
+                language: 'English',
+                expertise: 'developer'
+            },
             history: {
-                topics: [],
+                topics: ['state management'],
                 interactions: 0,
                 lastSeen: new Date()
             }
         },
         emotionalState: {
             user: 'neutral',
-            agent: 'neutral',
+            agent: 'professional',
             confidence: 1.0
         },
-        flags: {}
+        flags: {
+            isNewUser: true,
+            needsHelp: false
+        }
     };
 
     // Save initial state
-    await stateProvider.saveState(initialState);
+    await stateProvider.saveState(conversation);
 
-    // Update state with new topic
-    const stateWithTopic: ConversationStateData = {
-        ...initialState,
-        turnCount: 1,
-        lastInteraction: new Date(),
-        userProfile: {
-            ...initialState.userProfile,
-            history: {
-                ...initialState.userProfile.history,
-                topics: ['AI']
+    // Process some messages
+    const messages = [
+        "How does state management work?",
+        "Can you remember my preferences?",
+        "What was my first question?"
+    ];
+
+    for (const content of messages) {
+        // Update conversation state
+        const currentState = await stateProvider.loadState('demo-conversation');
+        if (currentState) {
+            currentState.turnCount++;
+            currentState.lastInteraction = new Date();
+            currentState.userProfile.history.interactions++;
+            await stateProvider.saveState(currentState);
+        }
+
+        // Process message
+        console.log('\nUser:', content);
+        const response = await agent.processMessage({
+            role: 'user',
+            content,
+            metadata: {
+                timestamp: new Date().toISOString(),
+                platform: 'cli',
+                conversationId: 'demo-conversation'
             }
-        }
-    };
-    await stateProvider.saveState(stateWithTopic);
+        });
+        console.log('Assistant:', response.content);
 
-    // Update state with user emotion
-    const stateWithEmotion: ConversationStateData = {
-        ...stateWithTopic,
-        turnCount: 2,
-        lastInteraction: new Date(),
-        emotionalState: {
-            user: 'excited',
-            agent: 'enthusiastic',
-            confidence: 0.9
-        }
-    };
-    await stateProvider.saveState(stateWithEmotion);
+        // Show current state
+        const updatedState = await stateProvider.loadState('demo-conversation');
+        console.log('\nCurrent State:', JSON.stringify(updatedState, null, 2), '\n');
+    }
 
-    // Update state with preferences
-    const stateWithPreferences: ConversationStateData = {
-        ...stateWithEmotion,
-        turnCount: 3,
-        lastInteraction: new Date(),
-        userProfile: {
-            ...stateWithEmotion.userProfile,
-            preferences: {
-                language: 'en',
-                notifications: true
-            }
-        }
-    };
-    await stateProvider.saveState(stateWithPreferences);
-
-    // Update state with variables
-    const stateWithVariables: ConversationStateData = {
-        ...stateWithPreferences,
-        turnCount: 4,
-        lastInteraction: new Date(),
-        variables: {
-            lastCommand: 'help',
-            context: 'tutorial'
-        }
-    };
-    await stateProvider.saveState(stateWithVariables);
-
-    // Update state with flags
-    const stateWithFlags: ConversationStateData = {
-        ...stateWithVariables,
-        turnCount: 5,
-        lastInteraction: new Date(),
-        flags: {
-            hasCompletedTutorial: true,
-            isSubscribed: false
-        }
-    };
-    await stateProvider.saveState(stateWithFlags);
-
-    // Load and verify final state
-    const finalState = await stateProvider.loadState(conversationId);
-    console.log('Final State:', finalState);
-
-    await stateProvider.shutdown();
+    // Cleanup
+    await agent.shutdown();
 }
 
 main().catch(console.error); 
