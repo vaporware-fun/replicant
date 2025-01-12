@@ -1,7 +1,7 @@
 {
-  "name": "vapor-framework",
+  "name": "replicant",
   "version": "1.0.0",
-  "description": "A TypeScript framework for building AI agents with social media integration and Web3 capabilities",
+  "description": "A TypeScript framework for building autonomous AI agents with advanced media processing, swarm coordination, and Web3 capabilities",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

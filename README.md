@@ -1,12 +1,15 @@
-# Vapor Framework
+# Replicant
 
-A TypeScript framework for building AI agents with social media integration and Web3 capabilities.
+A TypeScript framework for building autonomous AI agents with advanced media processing, swarm coordination, and Web3 capabilities.
 
 ## Features
 
-- 🤖 AI-powered conversational agents
+- 🤖 AI-powered autonomous agents
 - 🌐 Multi-platform support (Discord, Telegram, Twitter)
-- 💬 Context-aware conversations
+- 💬 Context-aware conversations with long-term memory
+- 🎨 Advanced media processing (PDF, images, audio, video)
+- 🐝 Swarm intelligence and agent coordination
+- 📊 Real-time monitoring and evaluation
 - 🧠 Memory and state management
 - 🔌 Pluggable architecture
 - 🎭 Emotional state tracking
@@ -27,8 +30,8 @@ A TypeScript framework for building AI agents with social media integration and 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/vapor-framework.git
-cd vapor-framework
+git clone https://github.com/yourusername/replicant.git
+cd replicant
 ```
 
 2. Install dependencies:
@@ -85,8 +88,8 @@ node dist/examples/state-management.js
 Here's a simple example of creating an AI agent:
 
 ```typescript
-import { Agent } from 'vapor-framework';
-import { AnthropicProvider } from 'vapor-framework/integrations/ai';
+import { Agent } from 'replicant';
+import { AnthropicProvider } from 'replicant/integrations/ai';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -132,13 +135,16 @@ main().catch(console.error);
 
 ## Architecture
 
-The Vapor Framework is built around these core concepts:
+The Replicant framework is built around these core concepts:
 
 1. **Agent**: The main class that coordinates all functionality
 2. **Plugins**: Modular integrations (Discord, Telegram, etc.)
 3. **State Management**: Conversation and user state tracking
 4. **Memory**: Long-term storage and retrieval
-5. **Function Calling**: Extensible function registration and execution
+5. **Media Processing**: Advanced handling of various media types
+6. **Swarm Coordination**: Multi-agent collaboration and decision making
+7. **Monitoring**: Real-time performance tracking and evaluation
+8. **Function Calling**: Extensible function registration and execution
 
 ## Available Integrations
 

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import {
-    VaporConfig,
+    ReplicantConfig,
     Message,
     ModelContextProtocol,
     AIProvider,
@@ -16,7 +16,7 @@ import {
 } from './interfaces';
 
 export class Agent extends EventEmitter {
-    private config: VaporConfig;
+    private config: ReplicantConfig;
     private aiProvider?: AIProvider;
     private personalityProvider?: PersonalityProvider;
     private stateProvider?: StateProvider;
@@ -29,7 +29,7 @@ export class Agent extends EventEmitter {
     private taskCheckInterval: number = 60000; // Check tasks every minute
     private taskTimer?: NodeJS.Timeout;
 
-    constructor(config: VaporConfig) {
+    constructor(config: ReplicantConfig) {
         super();
         this.config = config;
     }

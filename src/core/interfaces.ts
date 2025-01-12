@@ -34,12 +34,13 @@ export interface FunctionProvider extends Integration {
     validateParameters(params: Record<string, any>, definition: FunctionDefinition): boolean;
 }
 
-export interface VaporConfig {
-    domain?: string;
-    userId?: string;
-    platform?: string;
-    capabilities?: string[];
-    permissions?: string[];
+export interface ReplicantConfig {
+    domain: string;
+    userId: string;
+    platform: string;
+    capabilities: string[];
+    permissions: string[];
+    tools?: string[];
     userPreferences?: Record<string, any>;
 }
 

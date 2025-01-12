@@ -1,29 +1,23 @@
 import { TwitterApi } from 'twitter-api-v2';
 import { Agent } from '../../core/Agent';
-import { VaporConfig, Plugin, Message } from '../../core/interfaces';
+import { ReplicantConfig, Plugin, Message } from '../../core/interfaces';
 
-export interface TwitterConfig extends VaporConfig {
+export interface TwitterConfig extends ReplicantConfig {
     twitterApiKey: string;
     twitterApiSecret: string;
     twitterAccessToken: string;
     twitterAccessSecret: string;
 }
 
-export class TwitterAgent extends Agent implements Plugin {
-    private twitter: TwitterApi;
+export class TwitterAgent implements Plugin {
+    private client: TwitterApi;
+    private agent?: Agent;
     public readonly name: string = 'twitter';
     public readonly version: string = '1.0.0';
-    public readonly type: 'social' = 'social';
+    public readonly type = 'social' as const;
 
     constructor(config: TwitterConfig) {
-        super(config);
-        
-        if (!config.twitterApiKey || !config.twitterApiSecret || 
-            !config.twitterAccessToken || !config.twitterAccessSecret) {
-            throw new Error('Twitter credentials are required for TwitterAgent');
-        }
-
-        this.twitter = new TwitterApi({
+        this.client = new TwitterApi({
             appKey: config.twitterApiKey,
             appSecret: config.twitterApiSecret,
             accessToken: config.twitterAccessToken,
@@ -31,44 +25,36 @@ export class TwitterAgent extends Agent implements Plugin {
         });
     }
 
+    setAgent(agent: Agent) {
+        this.agent = agent;
+    }
+
     async tweet(content: string): Promise<string> {
         try {
-            const tweet = await this.twitter.v2.tweet(content);
+            const tweet = await this.client.v2.tweet(content);
             return `Tweet posted successfully: ${tweet.data.id}`;
         } catch (error) {
-            throw new Error(`Failed to post tweet: ${error}`);
+            console.error('Error posting tweet:', error);
+            throw new Error('Failed to post tweet');
         }
     }
 
     async reply(tweetId: string, content: string): Promise<string> {
         try {
-            const reply = await this.twitter.v2.reply(content, tweetId);
+            const reply = await this.client.v2.reply(content, tweetId);
             return `Reply posted successfully: ${reply.data.id}`;
         } catch (error) {
-            throw new Error(`Failed to post reply: ${error}`);
+            console.error('Error posting reply:', error);
+            throw new Error('Failed to post reply');
         }
     }
 
-    async processAndTweet(prompt: string): Promise<string> {
-        const response = await this.processMessage({
-            role: 'user',
-            content: prompt,
-            metadata: {
-                timestamp: new Date().toISOString(),
-                platform: 'twitter'
-            }
-        });
-        return this.tweet(response.content);
-    }
-
     async initialize(): Promise<void> {
-        await super.initialize();
         // Verify credentials
-        await this.twitter.v2.me();
+        await this.client.v2.me();
     }
 
     async shutdown(): Promise<void> {
-        // Nothing to clean up for Twitter
-        await super.shutdown();
+        // No cleanup needed for Twitter client
     }
 } 

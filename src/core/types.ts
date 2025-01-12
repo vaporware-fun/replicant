@@ -1,20 +1,10 @@
-export interface VaporConfig {
-    // AI Configuration
-    anthropicApiKey: string;
-    model: string;
-    
-    // Social Integration Keys
-    twitterApiKey?: string;
-    twitterApiSecret?: string;
-    twitterAccessToken?: string;
-    twitterAccessSecret?: string;
-    
-    discordToken?: string;
-    telegramToken?: string;
-    
-    // Wallet Configuration
-    ethereumPrivateKey?: string;
-    ethereumRpcUrl?: string;
+export interface ReplicantConfig {
+    domain: string;
+    userId: string;
+    platform: string;
+    capabilities: string[];
+    permissions: string[];
+    tools?: string[];
 }
 
 export interface Message {

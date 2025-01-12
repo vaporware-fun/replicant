@@ -1,32 +1,29 @@
 import { Command } from 'commander';
 import * as readline from 'readline';
 import { Agent } from '../core/Agent';
-import { VaporConfig } from '../core/interfaces';
-import * as dotenv from 'dotenv';
+import { ReplicantConfig } from '../core/interfaces';
+import { AnthropicProvider } from '../integrations/ai/AnthropicProvider';
+import dotenv from 'dotenv';
 
 dotenv.config();
 
 const program = new Command();
 
 program
-    .name('vapor-cli')
-    .description('CLI interface for Vapor AI Agent')
+    .name('replicant-cli')
+    .description('CLI interface for Replicant AI Agent')
     .version('1.0.0');
 
 program.command('chat')
-    .description('Start a chat session with the AI agent')
+    .description('Start a chat with the AI agent')
     .action(async () => {
-        const config: VaporConfig = {
-            domain: 'cli',
-            userId: 'cli-user',
+        const config: ReplicantConfig = {
+            domain: 'cli-chat',
+            userId: 'user-1',
             platform: 'cli',
-            capabilities: ['text-generation', 'conversation'],
-            permissions: ['chat'],
-            userPreferences: {}
+            capabilities: ['text-generation'],
+            permissions: ['read', 'write']
         };
-
-        const agent = new Agent(config);
-        await agent.initialize();
 
         const rl = readline.createInterface({
             input: process.stdin,
@@ -59,6 +56,9 @@ program.command('chat')
                 prompt();
             });
         };
+
+        const agent = new Agent(config);
+        await agent.initialize();
 
         prompt();
     });

@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
-import { VaporConfig, WalletProvider, Plugin } from '../core/interfaces';
+import { ReplicantConfig, WalletProvider, Plugin } from '../core/interfaces';
 
-export interface EthereumConfig extends VaporConfig {
+export interface EthereumConfig extends ReplicantConfig {
     ethereumPrivateKey: string;
     ethereumRpcUrl: string;
 }
