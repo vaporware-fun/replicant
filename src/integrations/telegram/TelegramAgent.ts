@@ -1,13 +1,15 @@
 import { Telegraf, Context } from 'telegraf';
 import { Agent } from '../../core/Agent';
 import { ReplicantConfig, Plugin } from '../../core/interfaces';
-import { Update, Message } from 'telegraf/typings/core/types/typegram';
+import { Update, Message as TelegramMessage } from 'telegraf/typings/core/types/typegram';
+import { EventEmitter } from 'events';
+import { Message } from '../../core/types';
 
 export interface TelegramConfig extends ReplicantConfig {
     telegramToken: string;
 }
 
-export class TelegramAgent implements Plugin {
+export class TelegramAgent extends EventEmitter implements Plugin {
     private bot: Telegraf;
     private agent?: Agent;
     private telegramToken: string;
@@ -16,6 +18,7 @@ export class TelegramAgent implements Plugin {
     public readonly type = 'messaging' as const;
 
     constructor(config: TelegramConfig) {
+        super();
         this.telegramToken = config.telegramToken;
         this.bot = new Telegraf(this.telegramToken);
     }
@@ -29,26 +32,29 @@ export class TelegramAgent implements Plugin {
             const message = ctx.message;
             if (!message || !('text' in message)) return;
             
-            if (this.agent) {
-                const response = await this.agent.processMessage({
-                    role: 'user',
-                    content: message.text,
-                    metadata: {
-                        platform: 'telegram',
-                        chatId: ctx.chat?.id.toString(),
-                        userId: ctx.from?.id.toString(),
-                        timestamp: new Date().toISOString()
-                    }
-                });
-                
-                await ctx.reply(response.content);
-            }
+            this.emit('message', {
+                role: 'user',
+                content: message.text,
+                metadata: {
+                    platform: 'telegram',
+                    chatId: ctx.chat?.id.toString(),
+                    userId: ctx.from?.id.toString(),
+                    timestamp: new Date().toISOString()
+                }
+            });
         });
 
         await this.bot.launch();
     }
 
+    async processMessage(message: Message): Promise<void> {
+        const chatId = message.metadata?.chatId;
+        if (!chatId) return;
+        
+        await this.bot.telegram.sendMessage(chatId, message.content);
+    }
+
     async shutdown(): Promise<void> {
         await this.bot.stop();
     }
-} 
+}

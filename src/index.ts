@@ -1,7 +1,7 @@
 // Core exports
 export { Agent } from './core/Agent';
 export { PluginManager } from './core/PluginManager';
-export { type VaporConfig, type Message, type ModelContextProtocol } from './core/types';
+export { type ReplicantConfig, type Message, type ModelContextProtocol } from './core/types';
 export {
     type Integration,
     type MessagingPlatform,
