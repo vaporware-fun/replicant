@@ -10,6 +10,67 @@
 
 ## Core Types
 
+### ModelContextProtocol
+
+The Model Context Protocol (MCP) defines how context is provided to Claude:
+
+```typescript
+interface ModelContextProtocol {
+    messages: Message[];              // Conversation history
+    context?: {
+        domain?: string;             // Domain context (e.g., 'customer-service')
+        metadata: MCPMetadata;       // Additional structured context
+    };
+}
+
+interface MCPMetadata {
+    domain?: string;                 // Optional domain override
+    conversation_id?: string;        // Unique conversation identifier
+    user_id?: string;               // User identifier
+    platform?: string;              // Platform identifier
+    capabilities?: string[];        // Available capabilities
+    permissions?: string[];         // Granted permissions
+    tools?: {                       // Available tools/functions
+        name: string;
+        description: string;
+        parameters?: Record<string, any>;
+    }[];
+    memories?: string[];           // Relevant past interactions
+    custom_data?: Record<string, any>; // Additional context
+}
+```
+
+The MCP enables:
+- **Contextual Awareness**: Claude understands its role and capabilities
+- **Memory Integration**: Access to relevant past interactions
+- **Tool Discovery**: Awareness of available functions and APIs
+- **Permission Management**: Understanding of allowed actions
+- **Platform Context**: Platform-specific behavior adaptation
+
+Example usage with the AnthropicProvider:
+
+```typescript
+class AnthropicProvider implements AIProvider {
+    async processMessage(message: Message, context: ModelContextProtocol): Promise<AIResponse> {
+        // The provider automatically formats the context for Claude
+        const response = await this.claude.messages.create({
+            model: this.model,
+            messages: context.messages,
+            system: this.formatSystemPrompt(context)
+        });
+        
+        return {
+            role: 'assistant',
+            content: response.content,
+            metadata: {
+                confidence: response.metadata?.confidence,
+                ...response.metadata
+            }
+        };
+    }
+}
+```
+
 ### ReplicantConfig
 
 Configuration for creating a new agent:
@@ -39,34 +100,6 @@ interface Message {
         userId?: string;                    // User identifier
         [key: string]: any;                 // Additional metadata
     };
-}
-```
-
-### ModelContextProtocol
-
-Context protocol for AI model interactions:
-
-```typescript
-interface ModelContextProtocol {
-    messages: Message[];              // Conversation history
-    context?: {
-        domain?: string;             // Domain context
-        metadata: MCPMetadata;       // Additional metadata
-    };
-}
-
-interface MCPMetadata {
-    domain?: string;
-    conversation_id?: string;
-    user_id?: string;
-    platform?: string;
-    capabilities?: string[];
-    permissions?: string[];
-    tools?: {
-        name: string;
-        description: string;
-        parameters?: Record<string, any>;
-    }[];
 }
 ```
 
@@ -272,4 +305,172 @@ class CustomPlugin extends EventEmitter implements Plugin {
         // Implement custom functionality
     }
 }
+```
+
+## Testing
+
+### Unit Testing
+
+The framework provides utilities for testing agents and plugins:
+
+```typescript
+import { TestUtils, MockAIProvider, MockStateProvider } from '../testing';
+
+describe('Agent', () => {
+    let agent: Agent;
+    let mockAI: MockAIProvider;
+    let mockState: MockStateProvider;
+
+    beforeEach(() => {
+        mockAI = new MockAIProvider();
+        mockState = new MockStateProvider();
+        
+        agent = new Agent({
+            domain: 'test',
+            userId: 'test-agent',
+            platform: 'test',
+            capabilities: ['test'],
+            permissions: ['test']
+        });
+
+        await agent.setAIProvider(mockAI);
+        await agent.setStateProvider(mockState);
+    });
+
+    it('should process messages correctly', async () => {
+        const response = await agent.processMessage({
+            role: 'user',
+            content: 'test message'
+        });
+
+        expect(response.content).toBeDefined();
+        expect(mockAI.processMessage).toHaveBeenCalled();
+    });
+});
+```
+
+### Integration Testing
+
+Example of testing platform integrations:
+
+```typescript
+describe('DiscordAgent', () => {
+    let agent: Agent;
+    let discordAgent: DiscordAgent;
+
+    beforeEach(async () => {
+        agent = TestUtils.createTestAgent();
+        discordAgent = new DiscordAgent({
+            domain: 'discord-test',
+            userId: 'test-bot',
+            platform: 'discord',
+            capabilities: ['chat'],
+            permissions: ['send-messages'],
+            discordToken: 'test-token'
+        });
+
+        await agent.initialize();
+        await discordAgent.initialize();
+    });
+
+    it('should handle Discord messages', async () => {
+        const message = TestUtils.createDiscordMessage('test message');
+        await discordAgent.handleMessage(message);
+        
+        expect(agent.messageQueue.length).toBe(1);
+    });
+});
+```
+
+### Mock Providers
+
+The framework includes mock providers for testing:
+
+```typescript
+class MockAIProvider implements AIProvider {
+    async processMessage(message: Message): Promise<AIResponse> {
+        return {
+            role: 'assistant',
+            content: 'Mock response',
+            metadata: {
+                confidence: 1.0
+            }
+        };
+    }
+}
+
+class MockStateProvider implements StateProvider {
+    private state: Map<string, ConversationStateData> = new Map();
+
+    async loadState(id: string): Promise<ConversationStateData | null> {
+        return this.state.get(id) || null;
+    }
+
+    async saveState(data: ConversationStateData): Promise<void> {
+        this.state.set(data.id, data);
+    }
+}
+```
+
+### Test Utilities
+
+Helper functions for common testing scenarios:
+
+```typescript
+export class TestUtils {
+    static createTestAgent(config?: Partial<ReplicantConfig>): Agent {
+        return new Agent({
+            domain: 'test',
+            userId: 'test-agent',
+            platform: 'test',
+            capabilities: ['test'],
+            permissions: ['test'],
+            ...config
+        });
+    }
+
+    static createTestMessage(content: string): Message {
+        return {
+            role: 'user',
+            content,
+            metadata: {
+                timestamp: new Date().toISOString(),
+                platform: 'test'
+            }
+        };
+    }
+
+    static async waitForAgentResponse(agent: Agent): Promise<Message> {
+        return new Promise((resolve) => {
+            agent.once('message', resolve);
+        });
+    }
+}
+```
+
+### Performance Testing
+
+Example of testing agent performance:
+
+```typescript
+describe('Agent Performance', () => {
+    it('should handle high message volume', async () => {
+        const agent = TestUtils.createTestAgent();
+        const messageCount = 1000;
+        const startTime = Date.now();
+
+        const messages = Array.from({ length: messageCount }, (_, i) => ({
+            role: 'user',
+            content: `Test message ${i}`,
+            metadata: { timestamp: new Date().toISOString() }
+        }));
+
+        await Promise.all(messages.map(msg => agent.queueMessage(msg)));
+        
+        const endTime = Date.now();
+        const timePerMessage = (endTime - startTime) / messageCount;
+        
+        expect(timePerMessage).toBeLessThan(100); // Less than 100ms per message
+    });
+});
 ``` 

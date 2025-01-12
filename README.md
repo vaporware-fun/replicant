@@ -194,6 +194,76 @@ Messages flow through the system in this order:
 4. Response is routed back to appropriate platform
 5. Platform agent sends response to user
 
+### Model Context Protocol (MCP)
+
+The framework leverages Claude's Model Context Protocol to provide rich, structured context for each interaction:
+
+```typescript
+// Example of MCP context structure
+const context: ModelContextProtocol = {
+    messages: conversationHistory,
+    context: {
+        domain: 'customer-service',
+        metadata: {
+            user_id: 'user-123',
+            platform: 'discord',
+            capabilities: ['text-generation', 'function-calling'],
+            permissions: ['read', 'write'],
+            tools: [
+                {
+                    name: 'searchKnowledgeBase',
+                    description: 'Search the support knowledge base',
+                    parameters: {
+                        query: 'string',
+                        category: 'string'
+                    }
+                }
+            ]
+        }
+    }
+};
+```
+
+The framework automatically:
+1. **Maintains Conversation History**: Tracks and provides relevant message history
+2. **Provides Domain Context**: Includes agent domain and role information
+3. **Specifies Capabilities**: Lists available tools and permissions
+4. **Includes Metadata**: Adds platform-specific context and user information
+5. **Manages Memory**: Incorporates relevant memories and past interactions
+
+This structured context helps Claude:
+- Maintain consistent persona and behavior
+- Make informed decisions about tool usage
+- Understand user context and history
+- Respect platform-specific limitations
+- Access relevant past interactions
+
+Example usage in code:
+
+```typescript
+const agent = new Agent({
+    domain: 'customer-service',
+    capabilities: ['text-generation', 'function-calling'],
+    metadata: {
+        // Custom metadata for Claude
+        persona: 'helpful support agent',
+        tone: 'professional',
+        expertise: ['technical-support', 'billing']
+    }
+});
+
+// The framework automatically includes this context
+// in every interaction with Claude
+const response = await agent.processMessage({
+    role: 'user',
+    content: 'I need help with billing',
+    metadata: {
+        userId: 'user-123',
+        platform: 'discord'
+    }
+});
+```
+
 ## Architecture
 
 ### Core Components
@@ -276,11 +346,158 @@ class TelegramAgent extends EventEmitter implements Plugin {
 
 See the [examples](./src/examples) directory for more detailed examples:
 
-1. [Basic Chat](./src/examples/basic-chat.ts)
-2. [Discord Bot](./src/examples/discord-bot.ts)
-3. [Multi-platform Agent](./src/examples/full-example.ts)
-4. [State Management](./src/examples/state-management.ts)
-5. [Function Calling](./src/examples/function-calling.ts)
+1. [Basic Chat](./src/examples/basic-chat.ts) - Simple CLI-based chat agent
+2. [Discord Bot](./src/examples/discord-bot.ts) - Discord platform integration
+3. [Multi-platform Agent](./src/examples/full-example.ts) - Multiple platform support
+4. [State Management](./src/examples/state-management.ts) - Conversation state tracking
+5. [Function Calling](./src/examples/function-calling.ts) - Custom function integration
+6. [Swarm Coordination](./src/examples/swarm-coordination.ts) - Multi-agent collaboration
+
+### Swarm Coordination Example
+
+```typescript
+// Create specialized agents
+const agents = {
+    coordinator: new Agent({
+        domain: 'swarm-coordinator',
+        capabilities: ['coordination']
+    }),
+    researcher: new Agent({
+        domain: 'research',
+        capabilities: ['research']
+    }),
+    writer: new Agent({
+        domain: 'writing',
+        capabilities: ['writing']
+    })
+};
+
+// Coordinator assigns tasks
+const task = {
+    id: 'research-1',
+    description: 'Research AI trends'
+};
+
+const assignedAgent = await coordinator.assignTask(task);
+const result = await assignedAgent.processTask(task);
+```
+
+## Advanced Usage
+
+### Memory Management
+
+The framework provides different memory providers:
+
+```typescript
+// In-memory state
+const stateProvider = new InMemoryStateProvider();
+
+// Vector memory (requires Qdrant)
+const memoryProvider = new VectorMemoryProvider({
+    url: 'http://localhost:6333'
+});
+
+await agent.setStateProvider(stateProvider);
+await agent.setMemoryProvider(memoryProvider);
+```
+
+### Custom Plugins
+
+Create your own plugins by implementing the Plugin interface:
+
+```typescript
+class CustomPlugin implements Plugin {
+    public readonly name = 'custom-plugin';
+    public readonly version = '1.0.0';
+    
+    async initialize(): Promise<void> {
+        // Setup code
+    }
+    
+    async shutdown(): Promise<void> {
+        // Cleanup code
+    }
+}
+```
+
+### Error Handling
+
+The framework provides comprehensive error handling:
+
+```typescript
+agent.on('error', (error) => {
+    console.error('Agent error:', error);
+});
+
+try {
+    await agent.processMessage(message);
+} catch (error) {
+    if (error instanceof AIProviderError) {
+        // Handle AI provider errors
+    } else if (error instanceof StateError) {
+        // Handle state management errors
+    }
+}
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **AI Provider Connection**
+   - Ensure your API key is valid
+   - Check your network connection
+   - Verify the model name is correct
+
+2. **Platform Integration**
+   - Confirm bot tokens are valid
+   - Check required permissions
+   - Ensure proper event handling
+
+3. **Memory Management**
+   - Verify database connections
+   - Check storage limits
+   - Monitor memory usage
+
+### Debug Mode
+
+Enable debug mode for detailed logging:
+
+```typescript
+const agent = new Agent({
+    ...config,
+    debug: true
+});
+```
+
+### Performance Optimization
+
+1. **Memory Usage**
+   - Adjust context window size
+   - Use appropriate state providers
+   - Clean up unused resources
+
+2. **Response Time**
+   - Use model caching
+   - Implement request batching
+   - Optimize prompt engineering
+
+## Security Best Practices
+
+1. **API Keys**
+   - Use environment variables
+   - Rotate keys regularly
+   - Implement key restrictions
+
+2. **Data Privacy**
+   - Sanitize user inputs
+   - Encrypt sensitive data
+   - Implement access controls
+
+3. **Platform Security**
+   - Use secure connections
+   - Implement rate limiting
+   - Monitor for abuse
 
 ## Contributing
 
