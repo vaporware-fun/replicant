@@ -44,12 +44,18 @@ A TypeScript framework for building autonomous AI agents with advanced media pro
 
 ## Installation
 
-1. Install via npm:
+1. Clone the repository:
 ```bash
-npm install replicant-ai
+git clone https://github.com/yourusername/replicant.git
+cd replicant
 ```
 
-2. Create a `.env` file:
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Create a `.env` file:
 ```env
 # Required for AI
 ANTHROPIC_API_KEY=your_anthropic_api_key
@@ -67,12 +73,17 @@ TWITTER_ACCESS_TOKEN=your_twitter_access_token
 TWITTER_ACCESS_SECRET=your_twitter_access_secret
 ```
 
+4. Build the project:
+```bash
+npm run build
+```
+
 ## Quick Start
 
 ### Basic Agent Setup
 
 ```typescript
-import { Agent, AnthropicProvider } from 'replicant-ai';
+import { Agent, AnthropicProvider } from '../';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -116,7 +127,7 @@ main().catch(console.error);
 ### Discord Integration
 
 ```typescript
-import { Agent, DiscordAgent, AnthropicProvider } from 'replicant-ai';
+import { Agent, DiscordAgent, AnthropicProvider } from '../';
 import dotenv from 'dotenv';
 
 dotenv.config();
