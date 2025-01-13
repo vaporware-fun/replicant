@@ -178,6 +178,94 @@ async function main() {
 main().catch(console.error);
 ```
 
+### Twitter/X Integration
+
+```typescript
+import { Agent, TwitterAgent, AnthropicProvider } from '../';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+async function main() {
+    // Initialize main agent
+    const agent = new Agent({
+        domain: 'twitter-bot',
+        userId: 'twitter-assistant',
+        platform: 'twitter',
+        capabilities: ['text-generation', 'social-media'],
+        permissions: ['read', 'write']
+    });
+
+    // Set up AI provider
+    const aiProvider = new AnthropicProvider({
+        apiKey: process.env.ANTHROPIC_API_KEY!,
+        model: 'claude-3-opus-20240229'
+    });
+    await agent.setAIProvider(aiProvider);
+
+    // Initialize Twitter agent with monitoring rules
+    const twitterAgent = new TwitterAgent({
+        domain: 'twitter',
+        userId: 'twitter-bot',
+        platform: 'twitter',
+        capabilities: ['social-media'],
+        permissions: ['tweet', 'reply'],
+        twitterApiKey: process.env.TWITTER_API_KEY!,
+        twitterApiSecret: process.env.TWITTER_API_SECRET!,
+        twitterAccessToken: process.env.TWITTER_ACCESS_TOKEN!,
+        twitterAccessSecret: process.env.TWITTER_ACCESS_SECRET!,
+        monitoringRules: {
+            keywords: ['#AI', '#MachineLearning', 'artificial intelligence'],
+            usernames: ['OpenAI', 'AnthropicAI'],
+            includeRetweets: false,
+            includeQuotes: true,
+            replyProbability: 0.3,    // 30% chance to reply
+            quoteProbability: 0.1     // 10% chance to quote tweet
+        }
+    });
+
+    // Set up message handling
+    twitterAgent.on('message', async (message) => {
+        switch (message.metadata?.type) {
+            case 'mention':
+                // Handle direct mentions
+                console.log(`Received mention: ${message.content}`);
+                await agent.queueMessage(message);
+                break;
+            case 'monitored':
+                // Handle monitored tweets (keywords/users)
+                console.log(`Found monitored tweet: ${message.content}`);
+                if (message.metadata.interaction !== 'none') {
+                    await agent.queueMessage(message);
+                }
+                break;
+        }
+    });
+
+    agent.on('message', async (response) => {
+        if (response.metadata?.platform === 'twitter') {
+            // Handle different interaction types
+            await twitterAgent.processMessage(response);
+        }
+    });
+
+    // Initialize everything
+    await agent.initialize();
+    await twitterAgent.initialize();
+}
+
+main().catch(console.error);
+```
+
+The Twitter agent now supports:
+- Monitoring mentions and tags
+- Tracking specific keywords and hashtags
+- Following specific user accounts
+- Configurable interaction probabilities
+- Automatic replies and quote tweets
+- Filtering of retweets and quotes
+- Real-time tweet monitoring
+
 ## Core Concepts
 
 ### Agent
