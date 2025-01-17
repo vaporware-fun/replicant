@@ -22,241 +22,230 @@ export interface TwitterConfig extends ReplicantConfig {
     monitoringRules?: TwitterMonitoringRules;
 }
 
-export class TwitterAgent extends EventEmitter implements Plugin {
-    private client: TwitterApi;
-    private agent?: Agent;
-    private lastMentionId?: string;
-    private lastSearchId?: string;
-    private mentionCheckInterval: NodeJS.Timeout | null = null;
-    private searchCheckInterval: NodeJS.Timeout | null = null;
-    private isRunning: boolean = false;
-    private monitoringRules?: TwitterMonitoringRules;
+export class TwitterAgent extends Agent implements Plugin {
+    private client: any;
+    private config: TwitterConfig;
+    private twitterRunning: boolean = false;
+    private mentionCheckInterval: NodeJS.Timeout | undefined;
+    private searchCheckInterval: NodeJS.Timeout | undefined;
+    private lastMentionId: string | undefined;
+    private lastSearchId: string | undefined;
 
     public readonly name: string = 'twitter';
     public readonly version: string = '1.0.0';
     public readonly type = 'social' as const;
 
     constructor(config: TwitterConfig) {
-        super();
-        this.client = new TwitterApi({
-            appKey: config.twitterApiKey,
-            appSecret: config.twitterApiSecret,
-            accessToken: config.twitterAccessToken,
-            accessSecret: config.twitterAccessSecret,
-        });
-        this.monitoringRules = config.monitoringRules;
-        this.mentionCheckInterval = null;
-        this.searchCheckInterval = null;
-        this.isRunning = false;
+        super(config);
+        this.config = config;
     }
 
-    setAgent(agent: Agent) {
-        this.agent = agent;
-    }
+    async initialize(): Promise<void> {
+        if (!this.client) {
+            this.client = new TwitterApi({
+                appKey: this.config.twitterApiKey,
+                appSecret: this.config.twitterApiSecret,
+                accessToken: this.config.twitterAccessToken,
+                accessSecret: this.config.twitterAccessSecret
+            });
+        }
 
-    async tweet(content: string): Promise<string> {
-        try {
-            const tweet = await this.client.v2.tweet(content);
-            return `Tweet posted successfully: ${tweet.data.id}`;
-        } catch (error) {
-            console.error('Error posting tweet:', error);
-            throw new Error('Failed to post tweet');
+        this.twitterRunning = true;
+
+        if (this.config.monitoringRules) {
+            this.mentionCheckInterval = setInterval(() => this.checkMentions(), 60000);
+            this.searchCheckInterval = setInterval(() => this.checkKeywordsAndUsers(), 60000);
         }
     }
 
-    async reply(tweetId: string, content: string): Promise<string> {
+    async shutdown(): Promise<void> {
+        await super.shutdown();
+        if (!this.twitterRunning) return;
+
+        if (this.mentionCheckInterval) {
+            clearInterval(this.mentionCheckInterval);
+        }
+
+        if (this.searchCheckInterval) {
+            clearInterval(this.searchCheckInterval);
+        }
+
+        this.twitterRunning = false;
+    }
+
+    async processMessage(message: Message): Promise<Message> {
+        if (!this.client) throw new Error('Twitter client not initialized');
+
         try {
-            const reply = await this.client.v2.reply(content, tweetId);
-            return `Reply posted successfully: ${reply.data.id}`;
+            const tweetId = await this.tweet(message.content, message.metadata?.tweetId ? {
+                reply: { in_reply_to_tweet_id: message.metadata.tweetId }
+            } : undefined);
+
+            return {
+                role: 'assistant',
+                content: message.content,
+                metadata: {
+                    platform: 'twitter',
+                    tweetId,
+                    timestamp: new Date().toISOString()
+                }
+            };
         } catch (error) {
-            console.error('Error posting reply:', error);
-            throw new Error('Failed to post reply');
+            console.error('Error processing message:', error);
+            throw error;
         }
     }
 
-    private async checkMentions() {
-        if (!this.isRunning) return;
+    private async tweet(content: string, options?: any): Promise<string> {
+        if (!this.client) throw new Error('Twitter client not initialized');
 
         try {
-            // Get mentions with expanded user information
-            const mentions = await this.client.v2.userMentionTimeline(await this.getUserId(), {
-                since_id: this.lastMentionId,
-                expansions: ['author_id', 'referenced_tweets.id'],
-                'tweet.fields': ['created_at', 'conversation_id', 'in_reply_to_user_id'],
-                'user.fields': ['username', 'name']
+            // Split long messages
+            if (content.length > 280) {
+                const parts = this.splitMessage(content);
+                let lastTweetId: string | undefined;
+                for (const part of parts) {
+                    const tweetOptions = lastTweetId ? 
+                        { ...options, reply: { in_reply_to_tweet_id: lastTweetId } } : 
+                        options;
+                    const tweet = await this.client.v2.tweet(part, tweetOptions);
+                    lastTweetId = tweet.data.id;
+                }
+                return lastTweetId!;
+            }
+
+            const tweet = await this.client.v2.tweet(content, options);
+            return tweet.data.id;
+        } catch (error) {
+            console.error('Error sending tweet:', error);
+            throw error;
+        }
+    }
+
+    private splitMessage(content: string): string[] {
+        const parts: string[] = [];
+        let remaining = content;
+        const maxLength = 280;
+
+        while (remaining.length > 0) {
+            if (remaining.length <= maxLength) {
+                parts.push(remaining);
+                break;
+            }
+
+            // Find last space within maxLength
+            let splitIndex = remaining.lastIndexOf(' ', maxLength);
+            if (splitIndex === -1) {
+                splitIndex = maxLength;
+            }
+
+            parts.push(remaining.substring(0, splitIndex));
+            remaining = remaining.substring(splitIndex + 1);
+        }
+
+        return parts;
+    }
+
+    private async checkMentions(): Promise<void> {
+        if (!this.client || !this.twitterRunning) return;
+
+        try {
+            const me = await this.client.v2.me();
+            const mentions = await this.client.v2.userMentionTimeline(me.data.id, {
+                since_id: this.lastMentionId
             });
 
-            for (const mention of mentions.data?.data || []) {
-                // Update last mention ID
-                if (!this.lastMentionId || mention.id > this.lastMentionId) {
-                    this.lastMentionId = mention.id;
-                }
-
-                // Convert to standard message format
-                const message: Message = {
-                    role: 'user',
-                    content: mention.text,
-                    metadata: {
-                        platform: 'twitter',
-                        messageId: mention.id,
-                        userId: mention.author_id,
-                        timestamp: new Date().toISOString(),
-                        conversationId: mention.conversation_id,
-                        inReplyToId: mention.referenced_tweets?.[0]?.id,
-                        type: 'mention'
+            if (mentions.data) {
+                for (const mention of mentions.data) {
+                    if (!this.lastMentionId || mention.id > this.lastMentionId) {
+                        this.lastMentionId = mention.id;
                     }
-                };
 
-                // Emit message event
-                this.emit('message', message);
+                    const aiProvider = this.getAIProvider();
+                    if (aiProvider) {
+                        const message = {
+                            role: 'user' as const,
+                            content: mention.text,
+                            metadata: {
+                                platform: 'twitter',
+                                tweetId: mention.id,
+                                isMention: true,
+                                author_id: mention.author_id,
+                                timestamp: new Date().toISOString()
+                            }
+                        };
+                        const response = await aiProvider.processMessage(message);
+                        await this.processMessage(response);
+                    }
+                }
             }
         } catch (error) {
             console.error('Error checking mentions:', error);
         }
     }
 
-    private async getUserId(): Promise<string> {
-        const me = await this.client.v2.me();
-        return me.data.id;
-    }
-
-    private buildSearchQuery(): string {
-        const rules = this.monitoringRules;
-        if (!rules) return '';
-
-        const parts: string[] = [];
-        
-        // Add keywords
-        if (rules.keywords?.length) {
-            parts.push(`(${rules.keywords.join(' OR ')})`);
-        }
-
-        // Add usernames
-        if (rules.usernames?.length) {
-            const userPart = rules.usernames.map(u => `from:${u}`).join(' OR ');
-            parts.push(`(${userPart})`);
-        }
-
-        // Exclude retweets if not wanted
-        if (!rules.includeRetweets) {
-            parts.push('-is:retweet');
-        }
-
-        // Exclude quotes if not wanted
-        if (!rules.includeQuotes) {
-            parts.push('-is:quote');
-        }
-
-        return parts.join(' ');
-    }
-
-    private async checkKeywordsAndUsers() {
-        if (!this.isRunning || !this.monitoringRules) return;
+    private async checkKeywordsAndUsers(): Promise<void> {
+        if (!this.client || !this.twitterRunning || !this.config.monitoringRules) return;
 
         try {
             const query = this.buildSearchQuery();
             if (!query) return;
 
             const tweets = await this.client.v2.search(query, {
-                since_id: this.lastSearchId,
-                expansions: ['author_id', 'referenced_tweets.id'],
-                'tweet.fields': ['created_at', 'conversation_id', 'in_reply_to_user_id'],
-                'user.fields': ['username', 'name']
+                since_id: this.lastSearchId
             });
 
-            for (const tweet of tweets.data?.data || []) {
-                // Update last search ID
-                if (!this.lastSearchId || tweet.id > this.lastSearchId) {
-                    this.lastSearchId = tweet.id;
-                }
-
-                // Decide whether to interact
-                const shouldReply = Math.random() < (this.monitoringRules.replyProbability || 0);
-                const shouldQuote = Math.random() < (this.monitoringRules.quoteProbability || 0);
-
-                // Convert to standard message format
-                const message: Message = {
-                    role: 'user',
-                    content: tweet.text,
-                    metadata: {
-                        platform: 'twitter',
-                        messageId: tweet.id,
-                        userId: tweet.author_id,
-                        timestamp: new Date().toISOString(),
-                        conversationId: tweet.conversation_id,
-                        type: 'monitored',
-                        interaction: shouldReply ? 'reply' : shouldQuote ? 'quote' : 'none'
+            if (tweets.data) {
+                for (const tweet of tweets.data) {
+                    if (!this.lastSearchId || tweet.id > this.lastSearchId) {
+                        this.lastSearchId = tweet.id;
                     }
-                };
 
-                // Emit message event
-                this.emit('message', message);
+                    const aiProvider = this.getAIProvider();
+                    if (aiProvider) {
+                        const message = {
+                            role: 'user' as const,
+                            content: tweet.text,
+                            metadata: {
+                                platform: 'twitter',
+                                tweetId: tweet.id,
+                                isKeywordMatch: true,
+                                author_id: tweet.author_id,
+                                timestamp: new Date().toISOString()
+                            }
+                        };
+                        const response = await aiProvider.processMessage(message);
+                        await this.processMessage(response);
+                    }
+                }
             }
         } catch (error) {
             console.error('Error checking keywords and users:', error);
         }
     }
 
-    async quoteTweet(tweetId: string, content: string): Promise<string> {
-        try {
-            const tweet = await this.client.v2.quote(content, tweetId);
-            return `Quote tweet posted successfully: ${tweet.data.id}`;
-        } catch (error) {
-            console.error('Error posting quote tweet:', error);
-            throw new Error('Failed to post quote tweet');
-        }
-    }
+    private buildSearchQuery(): string {
+        const rules = this.config.monitoringRules;
+        if (!rules) return '';
 
-    async initialize(): Promise<void> {
-        // Verify credentials
-        await this.client.v2.me();
-        
-        // Start monitoring
-        this.isRunning = true;
+        const parts: string[] = [];
 
-        // Start mention monitoring
-        this.mentionCheckInterval = setInterval(
-            () => this.checkMentions(),
-            60000 // Check every minute by default
-        );
-
-        // Start keyword and user monitoring if rules are set
-        if (this.monitoringRules) {
-            this.searchCheckInterval = setInterval(
-                () => this.checkKeywordsAndUsers(),
-                120000 // Check every 2 minutes
-            );
+        if (rules.keywords?.length) {
+            parts.push(`(${rules.keywords.join(' OR ')})`);
         }
 
-        // Do initial checks
-        await this.checkMentions();
-        if (this.monitoringRules) {
-            await this.checkKeywordsAndUsers();
+        if (rules.usernames?.length) {
+            parts.push(`(${rules.usernames.map(u => `from:${u}`).join(' OR ')})`);
         }
-    }
 
-    async processMessage(message: Message): Promise<void> {
-        if (!message.metadata?.messageId) {
-            // New tweet
-            await this.tweet(message.content);
-        } else if (message.metadata.interaction === 'quote') {
-            // Quote tweet
-            await this.quoteTweet(message.metadata.messageId, message.content);
-        } else {
-            // Reply to tweet
-            await this.reply(message.metadata.messageId, message.content);
+        if (!rules.includeRetweets) {
+            parts.push('-is:retweet');
         }
-    }
 
-    async shutdown(): Promise<void> {
-        this.isRunning = false;
-        if (this.mentionCheckInterval) {
-            clearInterval(this.mentionCheckInterval);
-            this.mentionCheckInterval = null;
+        if (!rules.includeQuotes) {
+            parts.push('-is:quote');
         }
-        if (this.searchCheckInterval) {
-            clearInterval(this.searchCheckInterval);
-            this.searchCheckInterval = null;
-        }
+
+        return parts.join(' ');
     }
 } 

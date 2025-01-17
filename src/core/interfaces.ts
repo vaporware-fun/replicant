@@ -45,9 +45,16 @@ export interface ReplicantConfig {
 }
 
 export interface Message {
-    role: 'system' | 'user' | 'assistant';
+    role: 'user' | 'assistant' | 'system';
     content: string;
-    metadata?: Record<string, any>;
+    metadata?: {
+        emotional_state?: {
+            user: string;
+            agent: string;
+            confidence: number;
+        };
+        [key: string]: any;
+    };
 }
 
 export interface MCPMetadata {
@@ -135,8 +142,7 @@ export interface PersonalityProfile {
     behaviorRules?: string[];
 }
 
-export interface AIResponse {
-    content: string;
+export interface AIResponse extends Message {
     confidence: number;
     reasoning?: string;
     metadata?: {
@@ -194,10 +200,10 @@ export interface WalletProvider extends Integration {
     signMessage(message: string): Promise<string>;
 }
 
-export interface AIProvider extends Integration {
-    processMessage(message: Message, context: ModelContextProtocol): Promise<AIResponse>;
-    setContext(context: ModelContextProtocol): Promise<void>;
-    clearContext(): Promise<void>;
+export interface AIProvider {
+    initialize(): Promise<void>;
+    shutdown(): Promise<void>;
+    processMessage(message: Message): Promise<Message>;
 }
 
 export interface StorageProvider extends Integration {

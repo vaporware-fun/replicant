@@ -1,6 +1,6 @@
-import { Agent } from '../core/Agent';
-import { BasePersonalityProvider } from '../core/BasePersonalityProvider';
-import { PersonalityProfile, Message } from '../core/interfaces';
+import { Agent } from '../../core/Agent';
+import { BasePersonalityProvider } from '../../core/BasePersonalityProvider';
+import { PersonalityProfile, Message } from '../../core/interfaces';
 
 async function main() {
     // Create a master chef agent

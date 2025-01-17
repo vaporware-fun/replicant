@@ -1,5 +1,5 @@
-import { Agent, DiscordAgent, AnthropicProvider } from '../';
-import { InMemoryStateProvider } from '../core/InMemoryStateProvider';
+import { Agent, DiscordAgent, AnthropicProvider } from '../../';
+import { InMemoryStateProvider } from '../../core/InMemoryStateProvider';
 import dotenv from 'dotenv';
 
 dotenv.config();

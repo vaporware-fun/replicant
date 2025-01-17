@@ -149,6 +149,7 @@ export class BasePersonalityProvider implements PersonalityProvider {
         }
 
         return {
+            role: 'assistant',
             content: this.applyPersonalityStyle(response),
             confidence,
             reasoning,

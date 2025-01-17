@@ -1,12 +1,12 @@
-import { Agent } from '../core/Agent';
-import { BaseSwarmProvider } from '../core/BaseSwarmProvider';
-import { AnthropicProvider } from '../integrations/ai/AnthropicProvider';
-import { BasePersonalityProvider } from '../core/BasePersonalityProvider';
-import { InMemoryStateProvider } from '../core/InMemoryStateProvider';
-import { VectorMemoryProvider } from '../integrations/memory/VectorMemoryProvider';
-import { Message, SwarmMetrics } from '../core/interfaces';
+import { Agent } from '../../core/Agent';
+import { BaseSwarmProvider } from '../../core/BaseSwarmProvider';
+import { AnthropicProvider } from '../../integrations/ai/AnthropicProvider';
+import { BasePersonalityProvider } from '../../core/BasePersonalityProvider';
+import { InMemoryStateProvider } from '../../core/InMemoryStateProvider';
+import { VectorMemoryProvider } from '../../integrations/memory/VectorMemoryProvider';
+import { Message, SwarmMetrics } from '../../core/interfaces';
 import dotenv from 'dotenv';
-import { PerplexityProvider } from '../integrations/search/PerplexityProvider';
+import { PerplexityProvider } from '../../integrations/search/PerplexityProvider';
 
 dotenv.config();
 

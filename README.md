@@ -615,4 +615,11 @@ const agent = new Agent({
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Documentation
+
+- [API Reference](./API.md) - Detailed API documentation
+- [Creating Integrations](./docs/creating-integrations.md) - Guide for creating new integrations
+- [Contributing Guidelines](./CONTRIBUTING.md) - How to contribute to the project
+- [Changelog](./CHANGELOG.md) - Version history and changes 

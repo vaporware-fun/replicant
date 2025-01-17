@@ -10,25 +10,24 @@ export interface AnthropicConfig {
 export class AnthropicProvider implements AIProvider {
     private client: Anthropic;
     private config: AnthropicConfig;
-    private context: ModelContextProtocol;
+    private context: ModelContextProtocol = {
+        messages: [],
+        metadata: {
+            domain: 'general',
+            conversation_id: '',
+            user_id: '',
+            platform: 'anthropic',
+            capabilities: ['text-generation'],
+            permissions: [],
+            tools: []
+        }
+    };
 
     constructor(config: AnthropicConfig) {
         this.config = config;
         this.client = new Anthropic({
             apiKey: this.config.apiKey,
         });
-        this.context = {
-            messages: [],
-            metadata: {
-                domain: 'general',
-                conversation_id: '',
-                user_id: '',
-                platform: 'anthropic',
-                capabilities: ['text-generation', 'conversation'],
-                permissions: [],
-                tools: []
-            }
-        };
     }
 
     async initialize(): Promise<void> {
@@ -39,38 +38,50 @@ export class AnthropicProvider implements AIProvider {
         // Nothing to clean up for Anthropic
     }
 
-    async processMessage(message: Message, context: ModelContextProtocol): Promise<AIResponse> {
-        this.context = context;
-        
-        // Prepare system message with MCP context if it's not already present
-        const systemPrompt = this.buildSystemPrompt(context.metadata);
+    async processMessage(message: Message): Promise<Message> {
+        try {
+            // Add the new message to the context
+            this.context.messages.push(message);
 
-        const response = await this.client.beta.messages.create({
-            model: this.config.model,
-            max_tokens: this.config.maxTokens || 1024,
-            system: systemPrompt,
-            messages: context.messages.map(msg => ({
-                role: msg.role === 'user' ? 'user' : 'assistant',
-                content: msg.content
-            }))
-        });
+            // Prepare system message with MCP context
+            const systemPrompt = this.buildSystemPrompt(this.context.metadata);
 
-        const content = response.content[0].type === 'text' ? response.content[0].text : '';
+            const response = await this.client.beta.messages.create({
+                model: this.config.model,
+                max_tokens: this.config.maxTokens || 1024,
+                system: systemPrompt,
+                messages: this.context.messages.map(msg => ({
+                    role: msg.role === 'user' ? 'user' : 'assistant',
+                    content: msg.content
+                }))
+            });
 
-        return {
-            content,
-            confidence: 0.9,
-            reasoning: 'Generated using Anthropic Claude model',
-            metadata: {
-                emotional_state: {
-                    user: 'neutral',
-                    agent: 'helpful',
-                    confidence: 1.0
-                },
-                variables: {},
-                context: context.metadata.domain
-            }
-        };
+            const content = response.content[0].type === 'text' ? response.content[0].text : '';
+
+            // Create the response message
+            const responseMessage: Message = {
+                role: 'assistant',
+                content,
+                metadata: {
+                    confidence: 0.9,
+                    reasoning: 'Generated using Anthropic Claude model',
+                    emotional_state: {
+                        user: 'neutral',
+                        agent: 'helpful',
+                        confidence: 1.0
+                    },
+                    context: this.context.metadata.domain
+                }
+            };
+
+            // Add the response to the context
+            this.context.messages.push(responseMessage);
+
+            return responseMessage;
+        } catch (error) {
+            console.error('Error processing message:', error);
+            throw error;
+        }
     }
 
     private buildSystemPrompt(metadata: MCPMetadata): string {
@@ -92,7 +103,10 @@ export class AnthropicProvider implements AIProvider {
     }
 
     async setContext(context: ModelContextProtocol): Promise<void> {
-        this.context = context;
+        this.context = {
+            messages: [...context.messages],
+            metadata: { ...context.metadata }
+        };
     }
 
     async clearContext(): Promise<void> {
@@ -103,7 +117,7 @@ export class AnthropicProvider implements AIProvider {
                 conversation_id: '',
                 user_id: '',
                 platform: 'anthropic',
-                capabilities: ['text-generation', 'conversation'],
+                capabilities: ['text-generation'],
                 permissions: [],
                 tools: []
             }

@@ -1,9 +1,9 @@
-import { Agent } from '../core/Agent';
-import { AnthropicProvider } from '../integrations/ai/AnthropicProvider';
-import { DiscordAgent } from '../integrations/discord/DiscordAgent';
-import { TelegramAgent } from '../integrations/telegram/TelegramAgent';
-import { InMemoryStateProvider } from '../core/InMemoryStateProvider';
-import { Message } from '../core/interfaces';
+import { Agent } from '../../core/Agent';
+import { AnthropicProvider } from '../../integrations/ai/AnthropicProvider';
+import { DiscordAgent } from '../../integrations/discord/DiscordAgent';
+import { TelegramAgent } from '../../integrations/telegram/TelegramAgent';
+import { InMemoryStateProvider } from '../../core/InMemoryStateProvider';
+import { Message } from '../../core/interfaces';
 import dotenv from 'dotenv';
 
 // Load environment variables

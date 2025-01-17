@@ -10,7 +10,15 @@ export interface ReplicantConfig {
 export interface Message {
     role: 'user' | 'assistant' | 'system';
     content: string;
-    metadata?: Record<string, any>;
+    metadata?: {
+        platform?: string;
+        timestamp?: string;
+        conversation_id?: string;
+        thread_id?: string;
+        parent_id?: string;
+        [key: string]: any;
+    };
+    confidence?: number;
 }
 
 // Enhanced MCP types
